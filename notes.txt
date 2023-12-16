@@ -1,0 +1,44 @@
+300 ms - 1/4
+225 ms - 3/16
+150 ms - 1/8
+75 ms - 1/16
+
+
+
+#include "daisysp.h"
+#include "daisy_seed.h"
+#include "daisy_core.h"
+
+
+using namespace daisy;
+using namespace daisy::seed;
+using namespace daisysp;
+
+
+static DaisySeed hw;
+Encoder encoder;
+
+int main(void)
+{ 
+  hw.Init();
+  hw.StartLog();
+  encoder.Init(D19, D18, D20);
+  int val = 0;
+
+  for(;;)
+  {
+    encoder.Debounce();
+    int increment = encoder.Increment();
+    if (increment)
+    {
+      val += -1*increment;
+      hw.PrintLine("Value:   %d", val);
+    }
+    if (encoder.RisingEdge())
+      hw.PrintLine("Pressed");
+    if (encoder.FallingEdge())
+      hw.PrintLine("Released");
+
+    System::Delay(1);
+  }
+}
