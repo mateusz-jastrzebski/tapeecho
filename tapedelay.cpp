@@ -4,12 +4,7 @@
 
 DaisySeed hw;
 MyOledDisplay display;
-CpuLoadMeter loadMeter;
-//GPIO tap_tempo;
 static AdcChannelConfig adc_config[3];
-
-Svf lowPass;
-Svf highPass;
 
 
 GPIO fLED;
@@ -39,7 +34,6 @@ float previousDelayParameters[3];
 int position = 4;
 
 float delay_out[4];
-//float feedback[4];
 float audio_out;
 float sample_rate;
 
@@ -51,7 +45,6 @@ Delay delays[4];
 
 float ProcessEmulation(float in)
 {
-  //filters.Process(in);
   return atan(in)*2/PI_F;
 }
 
@@ -88,8 +81,7 @@ void HandleDelays(float in, bool tapeHeadSetup[])
 void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                    AudioHandle::InterleavingOutputBuffer out,
                    size_t                    size)
-{  
-    loadMeter.OnBlockStart();
+{
     HandlePeripherals(hw, delays, heads, delayParameters, previousDelayParameters, delayTime, activeHeads, previousButtonsState);
 
     for(size_t i = 0; i < size; i+=2)
@@ -97,7 +89,6 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer in,
           audio_out = 0.0f;
           
           HandleDelays(in[LEFT], activeHeads);
-          //filters.Process(in[LEFT]);
           
 
           if(activeHeadCount == 0) audio_out = in[LEFT];
@@ -110,7 +101,6 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer in,
           out[LEFT] = audio_out;
           //out[RIGHT] = audio_out;
       }
-    loadMeter.OnBlockEnd();
 }
 
 
@@ -133,15 +123,6 @@ int main(void)
   disp_cfg.driver_config.transport_config.i2c_config.pin_config.scl = {DSY_GPIOB, 8};    disp_cfg.driver_config.transport_config.i2c_config.pin_config.sda = {DSY_GPIOB, 9};
   display.Init(disp_cfg);
 
-  System::Delay(500);
-
-  highPass.Init(sample_rate);
-  highPass.SetFreq(1000.0f);
-
-  lowPass.Init(sample_rate);
-  lowPass.SetFreq(2500.0f);
-
-  //tap_tempo.Init(D12, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
 
   fLED.Init(D21, GPIO::Mode::OUTPUT);
   sLED.Init(D22, GPIO::Mode::OUTPUT);
@@ -161,9 +142,6 @@ int main(void)
   hw.adc.Init(adc_config, 3);
 
   hw.adc.Start();
-
-  loadMeter.Init(hw.AudioSampleRate(), hw.AudioBlockSize());
-
   
   
   for(uint8_t i = 0; i < 4; i++)
@@ -172,7 +150,6 @@ int main(void)
     delays[i].delay = &sdramDelays[i];
   }
 
-  //System::Delay(5000);
   
   hw.StartAudio(AudioCallback);  
 
@@ -188,16 +165,6 @@ int main(void)
       display.WriteString(text, Font_16x26, true);
       display.Update();
 
-      // get the current load (smoothed value and peak values)
-        const float avgLoad = loadMeter.GetAvgCpuLoad();
-        const float maxLoad = loadMeter.GetMaxCpuLoad();
-        const float minLoad = loadMeter.GetMinCpuLoad();
-        // print it to the serial connection (as percentages)
-        hw.PrintLine("Processing Load %:");
-        hw.PrintLine("Max: " FLT_FMT3, FLT_VAR3(maxLoad * 100.0f));
-        hw.PrintLine("Avg: " FLT_FMT3, FLT_VAR3(avgLoad * 100.0f));
-        hw.PrintLine("Min: " FLT_FMT3, FLT_VAR3(minLoad * 100.0f));
-        // don't spam the serial connection too much
-        System::Delay(500);
+      System::Delay(6);
   }
 }
