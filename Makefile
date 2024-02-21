@@ -5,7 +5,7 @@ TARGET = tapeecho
 CPP_SOURCES = tapedelay.cpp utils.cpp
 
 # Headers
-H_HEADERS = tapedelay.h utils.h
+H_HEADERS = tapedelay.h utils.h lfo.h
 
 # Library Locations
 LIBDAISY_DIR = DaisyExamples/libDaisy

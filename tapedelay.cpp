@@ -1,23 +1,31 @@
 #include "tapedelay.h"
 #include "utils.h"
+#include "lfo.h"
 
-
+Svf lowPass;
 DaisySeed hw;
 MyOledDisplay display;
-static AdcChannelConfig adc_config[3];
+static AdcChannelConfig adc_config[5];
+
+LFO wow(0.25f, 48000.0f);
+LFO flutter(15.0f, 48000.0f);
+
+int digit = 0;
 
 
 GPIO fLED;
 GPIO sLED;
 GPIO tLED;
 GPIO foLED;
+GPIO OnOffLED;
 
-GPIO* led[4] = {&fLED, &sLED, &tLED, &foLED};
+GPIO* led[5] = {&fLED, &sLED, &tLED, &foLED, &OnOffLED};
 
 GPIO firstHead;
 GPIO secondHead;
 GPIO thirdHead;
 GPIO fourthHead;
+GPIO OnOffSwitch;
 
 GPIO* heads[4] = {&firstHead, &secondHead, &thirdHead, &fourthHead};
 
@@ -27,32 +35,28 @@ uint8_t activeHeadCount = 0;
 
 DelayLine<float, MAX_DELAY> DSY_SDRAM_BSS sdramDelays[4];
 
-bool activeHeads[4] = {false, false, false, true};
-bool previousButtonsState[4] = {false, false, false, false};
-float delayParameters[3];
-float previousDelayParameters[3];
-int position = 4;
+bool activeHeads[4];
+float delayParameters[5];
+float startingDelay = 0.312f;
 
+bool turnedOff;
 float delay_out[4];
-float audio_out;
 float sample_rate;
 
 float delayTime[4];
-int dupa = 0;
 
 
 Delay delays[4];
 
-float ProcessEmulation(float in)
-{
-  return atan(in)*2/PI_F;
+
+float TapeSaturation(float x, float drive) {
+    return tanhf(drive * x + 0.24f);
 }
 
 
-float Delay::ProcessDelay(float in, uint8_t i)
+float Delay::ProcessDelay(float in, float wowValue, float flutterValue, float depth, uint8_t i)
 {
-  fonepole(currentDelay, delayTarget, .001f);
-  delay->SetDelay(sample_rate * currentDelay);
+  delay->SetDelay(sample_rate * currentDelay * (1.0f + wowValue * 2.0f * depth + flutterValue * 0.2f * depth));
   float read = delay->Read();
   delay->Write(delayParameters[1] * read + in);
   return read;
@@ -61,20 +65,25 @@ float Delay::ProcessDelay(float in, uint8_t i)
 
 void HandleDelays(float in, bool tapeHeadSetup[])
 {
-    activeHeadCount = 0;
-    for(int i = 0; i < 4; i++) {
-      if(tapeHeadSetup[i])
-      {
-        //led[i]->Write(true);
-        delay_out[i] = delays[i].ProcessDelay(in, i);
-        activeHeadCount++;
-      }
-      else
-      {
-        //led[i]->Write(false);
-        delay_out[i] = 0.0f;
-      }
+  activeHeadCount = 0;
+  float wowValue = wow.Process();
+  float flutterValue = flutter.Process();
+  float depth = delayParameters[4];
+
+  for(int i = 0; i < 4; i++) {
+    if(tapeHeadSetup[i])
+    {
+      led[i]->Write(true);
+      delay_out[i] = delays[i].ProcessDelay(in, wowValue, flutterValue, depth, i);
+      activeHeadCount++;
     }
+    else
+    {
+      led[i]->Write(false);
+      delay_out[i] = 0.0f;
+    }
+  }
+  led[4]->Write(!turnedOff);
 }
 
 
@@ -82,25 +91,33 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                    AudioHandle::InterleavingOutputBuffer out,
                    size_t                    size)
 {
-    HandlePeripherals(hw, delays, heads, delayParameters, previousDelayParameters, delayTime, activeHeads, previousButtonsState);
+    HandlePeripherals(hw, delays, heads, delayParameters, delayTime, activeHeads, startingDelay, digit);
+    float altered_x = 0.0f;    
 
     for(size_t i = 0; i < size; i+=2)
-      {
-          audio_out = 0.0f;
-          
-          HandleDelays(in[LEFT], activeHeads);
-          
+    {
+        float audio_out = 0.0f;
 
-          if(activeHeadCount == 0) audio_out = in[LEFT];
-          else
-          {
-            for(int j = 0; j < 4; j++) audio_out += delay_out[j] / (float)activeHeadCount;
-            audio_out = (delayParameters[0] * audio_out) + ((1.0f - delayParameters[0]) * in[LEFT]);
-          }
-          
-          out[LEFT] = audio_out;
-          //out[RIGHT] = audio_out;
-      }
+        lowPass.Process(in[LEFT]);
+        altered_x = lowPass.Low();
+        altered_x = TapeSaturation(altered_x, delayParameters[3]);
+
+        HandleDelays(altered_x, activeHeads);
+
+        if(activeHeadCount == 0 || turnedOff) audio_out = in[LEFT];
+        else
+        {
+          for(int j = 0; j < 4; j++) audio_out += delay_out[j] / activeHeadCount;
+          audio_out *= delayParameters[0];
+          audio_out += (1.0f - delayParameters[0])*in[LEFT];
+        }
+        
+        if(audio_out > 1.0f) audio_out = 1.0f;
+        else if(audio_out < -1.0f) audio_out = -1.0f;
+
+        out[LEFT] = audio_out;
+        out[RIGHT] = in[LEFT];
+    }    
 }
 
 
@@ -108,12 +125,9 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 int main(void)
 {
   hw.Init();
-  
-  hw.SetAudioBlockSize(4);
-  hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
+  hw.SetAudioBlockSize(256);
+  hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_48KHZ);
   sample_rate = hw.AudioSampleRate();
-
-  hw.StartLog();
 
   MyOledDisplay::Config disp_cfg;
   disp_cfg.driver_config.transport_config.i2c_address               = 0x3C;
@@ -123,23 +137,33 @@ int main(void)
   disp_cfg.driver_config.transport_config.i2c_config.pin_config.scl = {DSY_GPIOB, 8};    disp_cfg.driver_config.transport_config.i2c_config.pin_config.sda = {DSY_GPIOB, 9};
   display.Init(disp_cfg);
 
+  lowPass.Init(sample_rate);
+  lowPass.SetFreq(4000.0);
+  lowPass.SetRes(0.0f);
+  lowPass.SetDrive(0.0f);
+
 
   fLED.Init(D21, GPIO::Mode::OUTPUT);
   sLED.Init(D22, GPIO::Mode::OUTPUT);
   tLED.Init(D23, GPIO::Mode::OUTPUT);
   foLED.Init(D24, GPIO::Mode::OUTPUT);
+  OnOffLED.Init(D25, GPIO::Mode::OUTPUT);
+
 
   firstHead.Init(D10, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
   secondHead.Init(D9, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
   thirdHead.Init(D8, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
   fourthHead.Init(D7, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
+  OnOffSwitch.Init(D13, GPIO::Mode::INPUT, GPIO::Pull::PULLUP);
 
-  adc_config[0].InitSingle(A0); //    DRY / WET
-  adc_config[1].InitSingle(A1); //    REPEATS
+  adc_config[0].InitSingle(A4); //    DRY / WET
+  adc_config[1].InitSingle(A3); //    REPEATS
   adc_config[2].InitSingle(A2); //    DELAY TIME
+  adc_config[3].InitSingle(A1); //    TAPE SATURATION
+  adc_config[4].InitSingle(A0); //    WOW & FLUTTER
   
 
-  hw.adc.Init(adc_config, 3);
+  hw.adc.Init(adc_config, 5);
 
   hw.adc.Start();
   
@@ -148,23 +172,37 @@ int main(void)
   {
     sdramDelays[i].Init();
     delays[i].delay = &sdramDelays[i];
+    delays[i].currentDelay = delayParameters[2];
   }
 
   
-  hw.StartAudio(AudioCallback);  
-
-  
+  hw.StartAudio(AudioCallback);
+  bool lastReading = activeHeads[0];
+  int clickCount = 0;
+  auto start_time = System::GetNow();
+  auto duration = System::GetNow() - start_time;
 
   for(;;){
-      display.Fill(false);
-      display.SetCursor(0, 0);
-      char text[6];
-      //display.WriteString(napis, Font_11x18, false);
-      snprintf(text, sizeof(text), "%dms", (int)(delays[3].currentDelay * 1000.0f));
-      
-      display.WriteString(text, Font_16x26, true);
-      display.Update();
+    turnedOff = OnOffSwitch.Read();
+    
+    if(duration > 10000) duration = 5000;
+    else duration = System::GetNow() - start_time;
 
-      System::Delay(6);
+    if(activeHeads[0] != lastReading){
+        if (duration < 800) {
+            clickCount++;
+            if (clickCount == 2) {
+                if(digit + 1 <= 2) digit++;
+                else digit = 0;
+                clickCount = 0;
+                start_time = System::GetNow();
+            }
+        } else {
+            clickCount = 1;
+            start_time = System::GetNow();
+        }
+        lastReading = activeHeads[0];
+    }
+    HandleDisplay(hw, display, delayParameters, digit);
   }
 }
