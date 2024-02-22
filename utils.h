@@ -1,7 +1,4 @@
 #pragma once
-#include "daisysp.h"
-#include "daisy_seed.h"
-#include "daisy_core.h"
 #include "tapedelay.h"
 
 

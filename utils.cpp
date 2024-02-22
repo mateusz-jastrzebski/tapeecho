@@ -38,7 +38,7 @@ void HandleDisplay(DaisySeed & hw, MyOledDisplay display, float (& delayParamete
     display.WriteString(text, Font_6x8, true);
     display.SetCursor(0, 54);
     parameterToShow = delayParameters[4]*1000.0f;
-    snprintf(text, sizeof(text), "Wow&Flutter: 0.00%d", (int)(parameterToShow));
+    snprintf(text, sizeof(text), "Wow&Flutter: %d%%", (int)(parameterToShow * 10.0f));
     display.WriteString(text, Font_6x8, true);
     display.Update();
 }
@@ -60,6 +60,8 @@ void changeDecimalPlace(float & origin, int var, float value) {
     int digit = (intValue / divisor) % 10;
     int newDigit = static_cast<int>(value * 10);
 
+    if(var == 0 && newDigit == 0) newDigit = 1;
+
     intValue += (newDigit - digit) * divisor;
 
     origin = static_cast<float>(intValue) / 1000;
@@ -68,16 +70,12 @@ void changeDecimalPlace(float & origin, int var, float value) {
 
 void HandlePeripherals(DaisySeed & hw, Delay (& delays)[], GPIO * heads[], float (& delayParameters)[], float (& delayTime)[], bool (& tapeHeadSetup)[], float & startingDelay, int digit)
 {
-    //for(int i = 0; i < 3; i++) delayParameters[i] = RoundFloat(IntToFloat(hw.adc.Get(i)), i);
     for(int i = 0; i < 5; i++) delayParameters[i] = hw.adc.GetFloat(i);
     delayParameters[0] *= 1.0101010101f;
     delayParameters[1] *= 1.5f;
-    //delayParameters[2] += 0.001f;
-    //delayParameters[2] *= 0.800f;
-    //delayParameters[2] += 0.200f;
     delayParameters[3] *= 5.8f;
     delayParameters[3] += 1.2f;
-    delayParameters[4] *= 0.007f;
+    delayParameters[4] *= 0.0025f;
 
     changeDecimalPlace(startingDelay, digit, delayParameters[2]);
 

@@ -138,7 +138,7 @@ int main(void)
   display.Init(disp_cfg);
 
   lowPass.Init(sample_rate);
-  lowPass.SetFreq(4000.0);
+  lowPass.SetFreq(6000.0f);
   lowPass.SetRes(0.0f);
   lowPass.SetDrive(0.0f);
 
