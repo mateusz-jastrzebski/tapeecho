@@ -2,9 +2,11 @@
 #include "tapedelay.h"
 
 
+//Funkcja obliczająca czas echa dla każdej głowicy
+//Proporcjonalnie 1 - 1/4 * delayTime, 2 - 1/2 * delayTime, 3 - 3/4 * delayTime, 4 - delayTime
 float CalcDelayTime(float delayTime, int playbackHead){ return delayTime*(float)playbackHead/4.0f; }
 
-
+//Funkcja wyświetlające parametry echa na ekranie
 void HandleDisplay(DaisySeed & hw, MyOledDisplay display, float (& delayParameters)[], int digit)
 {    
     display.Fill(false);
@@ -43,12 +45,14 @@ void HandleDisplay(DaisySeed & hw, MyOledDisplay display, float (& delayParamete
     display.Update();
 }
 
+//Funkcja sczytująca wybór głowic
 bool HandleTapeHeadSelection(GPIO * heads[], uint8_t i)
 {
     bool buttonRead = !(heads[i]->Read());
     return buttonRead;
 }
 
+//Funkcja przetwarzająca zmiany cyfry na wybranym miejscu dziesiętnym - digit
 void changeDecimalPlace(float & origin, int var, float value) {
     int intValue = static_cast<int>(origin * 1000);
 
@@ -67,11 +71,11 @@ void changeDecimalPlace(float & origin, int var, float value) {
     origin = static_cast<float>(intValue) / 1000;
 }
 
-
+//Funkcja obsługująca zapisywanie parametrów dźwięku i odczytywanie informacji z przetwornika ADC
 void HandlePeripherals(DaisySeed & hw, Delay (& delays)[], GPIO * heads[], float (& delayParameters)[], float (& delayTime)[], bool (& tapeHeadSetup)[], float & startingDelay, int digit)
 {
     for(int i = 0; i < 5; i++) delayParameters[i] = hw.adc.GetFloat(i);
-    delayParameters[0] *= 1.0101010101f;
+    delayParameters[0] *= 1.0101f;
     delayParameters[1] *= 1.5f;
     delayParameters[3] *= 5.8f;
     delayParameters[3] += 1.2f;

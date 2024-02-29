@@ -12,12 +12,15 @@ using namespace daisysp;
 
 using MyOledDisplay = OledDisplay<SSD130xI2c128x64Driver>;
 
+//Proste makra służące do łatwiejszego odnajdywania się w buforze przeplatanym
 #define LEFT (i)
 #define RIGHT (i + 1)
 
+//Ustawienie maksymalnego echa na 1.5 sekundy
 #define MAX_DELAY static_cast<size_t>(48000 * 1.5f)
 
 struct Delay {
+    //Obiekt klasy DelayLine, pochodzącej z biblioteki DaisySP
     DelayLine<float, MAX_DELAY> *delay;
     float currentDelay;
 
