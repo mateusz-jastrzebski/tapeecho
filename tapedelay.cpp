@@ -44,7 +44,7 @@ float sample_rate;
 
 float delayTime[4];
 
-
+DcBlock dcblock;
 Delay delays[4];
 
 //Funkcja realizująca emulację saturacji taśmy magnetycznej
@@ -57,7 +57,7 @@ float Delay::ProcessDelay(float in, float wowValue, float flutterValue, float de
 {
   delay->SetDelay(sample_rate * currentDelay * (1.0f + wowValue * 2.0f * depth + flutterValue * 0.2f * depth));
   float read = delay->Read();
-  delay->Write(delayParameters[1] * read + in);
+  delay->Write(dcblock.Process(delayParameters[1] * read + in));
   return read;
 };
 
@@ -114,10 +114,6 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer in,
           audio_out *= delayParameters[0];
           audio_out += (1.0f - delayParameters[0])*in[LEFT];
         }
-        
-        //Ograniczenie maksymalnej wartości amplitudy na wyjściu
-        if(audio_out > 1.0f) audio_out = 1.0f;
-        else if(audio_out < -1.0f) audio_out = -1.0f;
 
         //Wyjście sygnału
         out[LEFT] = audio_out;
@@ -146,9 +142,11 @@ int main(void)
 
   //Inicjalizacja filtra dolnoprzepustowego
   lowPass.Init(sample_rate);
-  lowPass.SetFreq(6000.0f);
+  lowPass.SetFreq(8000.0f);
   lowPass.SetRes(0.0f);
   lowPass.SetDrive(0.0f);
+
+  dcblock.Init(sample_rate);
 
   //Inicjalizacja diod LED
   fLED.Init(D21, GPIO::Mode::OUTPUT);
