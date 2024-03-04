@@ -151,7 +151,7 @@ int main(void)
   lowPass.SetDrive(0.0f);
 
   //Inicjalizacja diod LED
-  fLED.Init(D21, GPIO::Moe::OUTPUT);
+  fLED.Init(D21, GPIO::Mode::OUTPUT);
   sLED.Init(D22, GPIO::Mode::OUTPUT);
   tLED.Init(D23, GPIO::Mode::OUTPUT);
   foLED.Init(D24, GPIO::Mode::OUTPUT);
