@@ -77,7 +77,7 @@ void HandlePeripherals(DaisySeed & hw, Delay (& delays)[], GPIO * heads[], float
     for(int i = 0; i < 5; i++) delayParameters[i] = hw.adc.GetFloat(i);
     delayParameters[0] *= 1.0101f;
     delayParameters[1] *= 1.5f;
-    delayParameters[3] *= 5.8f;
+    delayParameters[3] *= 3.8f;
     delayParameters[3] += 1.2f;
     delayParameters[4] *= 0.0025f;
 

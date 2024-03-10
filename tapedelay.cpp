@@ -44,12 +44,11 @@ float sample_rate;
 
 float delayTime[4];
 
-DcBlock dcblock;
 Delay delays[4];
 
-//Funkcja realizująca emulację saturacji taśmy magnetycznej
+//Funkcja realizująca emulację wysycenia taśmy magnetycznej
 float TapeSaturation(float x, float drive) {
-    return tanhf(drive * x + 0.24f);
+  return tanhf(x * drive) * (2.2f / (1.0f + drive));
 }
 
 //Funkcja struktury Delay realizująca ustawianie echa
@@ -57,7 +56,7 @@ float Delay::ProcessDelay(float in, float wowValue, float flutterValue, float de
 {
   delay->SetDelay(sample_rate * currentDelay * (1.0f + wowValue * 2.0f * depth + flutterValue * 0.2f * depth));
   float read = delay->Read();
-  delay->Write(dcblock.Process(delayParameters[1] * read + in));
+  delay->Write(delayParameters[1] * read + in);
   return read;
 };
 
@@ -145,8 +144,6 @@ int main(void)
   lowPass.SetFreq(8000.0f);
   lowPass.SetRes(0.0f);
   lowPass.SetDrive(0.0f);
-
-  dcblock.Init(sample_rate);
 
   //Inicjalizacja diod LED
   fLED.Init(D21, GPIO::Mode::OUTPUT);
